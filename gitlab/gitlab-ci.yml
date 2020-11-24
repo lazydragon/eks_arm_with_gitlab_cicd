@@ -1,0 +1,44 @@
+stages:
+  - build
+  - post-build
+
+build-for-amd:
+  stage: build
+  image: 
+    name: gcr.io/kaniko-project/executor:debug
+  script:
+    - | 
+      mkdir -p /kaniko/.docker
+      /kaniko/executor --context /builds/root/springboot/springbootsample --dockerfile /builds/root/springboot/springbootsample/Dockerfile --destination 053173851555.dkr.ecr.ap-southeast-1.amazonaws.com/springboot-sample:amd
+  tags:
+  - amd
+  
+build-for-arm:
+  stage: build
+  image:
+    name: 053173851555.dkr.ecr.ap-southeast-1.amazonaws.com/kaniko:arm
+  script:
+    - | 
+      mkdir -p /kaniko/.docker
+      /kaniko/executor --context /builds/root/springboot/springbootsample --dockerfile /builds/root/springboot/springbootsample/Dockerfile --destination 053173851555.dkr.ecr.ap-southeast-1.amazonaws.com/springboot-sample:arm
+  tags:
+  - arm
+
+post-build:
+  stage: post-build
+  image:
+    name: 053173851555.dkr.ecr.ap-southeast-1.amazonaws.com/dind
+  services:
+    - name: docker:dind
+  variables:
+    DOCKER_HOST: tcp://localhost:2375/
+  script:
+    - |
+      $(aws ecr get-login --region ap-southeast-1 --no-include-email)
+      docker manifest create 053173851555.dkr.ecr.ap-southeast-1.amazonaws.com/springboot-sample:multi-arch 053173851555.dkr.ecr.ap-southeast-1.amazonaws.com/springboot-sample:arm 053173851555.dkr.ecr.ap-southeast-1.amazonaws.com/springboot-sample:amd
+      docker manifest annotate --arch arm64 053173851555.dkr.ecr.ap-southeast-1.amazonaws.com/springboot-sample:multi-arch 053173851555.dkr.ecr.ap-southeast-1.amazonaws.com/springboot-sample:arm
+      docker manifest annotate --arch amd64 053173851555.dkr.ecr.ap-southeast-1.amazonaws.com/springboot-sample:multi-arch 053173851555.dkr.ecr.ap-southeast-1.amazonaws.com/springboot-sample:amd
+      docker manifest inspect 053173851555.dkr.ecr.ap-southeast-1.amazonaws.com/springboot-sample:multi-arch
+      docker manifest push 053173851555.dkr.ecr.ap-southeast-1.amazonaws.com/springboot-sample:multi-arch
+  tags:
+  - amd
